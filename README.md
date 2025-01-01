@@ -1,187 +1,152 @@
-# Quantitative Trading Strategies and Backtesting Framework
+# Stock Portfolio Analysis and Optimization
 
-This Python framework provides tools for developing, testing, and optimizing quantitative trading strategies. It includes utility functions for:
-
-- **Fetching Stock Data**: Retrieves historical stock data from Yahoo Finance.
-- **Data Preprocessing**: Handles missing values and optional normalization of stock data.
-- **Strategy Implementation**: Allows you to implement and backtest trading strategies based on technical indicators or other signals.
-- **Backtesting Analysis**:
-  - Calculates key performance metrics such as Sharpe Ratio, Maximum Drawdown, and Win Rate.
-  - Analyzes the equity curve and cumulative returns.
-- **Portfolio Optimization**: Optimizes asset allocation using the Efficient Frontier and other metrics.
-- **Risk Management**: Implements basic risk management features like stop-loss mechanisms.
-
----
+This project provides a set of Python tools for analyzing and optimizing stock portfolios. It leverages historical stock data from Yahoo Finance and performs various risk and performance analyses, including calculating key financial ratios and portfolio optimizations.
 
 ## Features
 
-- **Data Collection**: Fetches stock data from Yahoo Finance for any stock ticker.
-- **Preprocessing**: Cleans and normalizes stock data.
-- **Backtesting**: Tests trading strategies and evaluates them with financial metrics.
-- **Visualization**: Generates graphs for backtest results, showing cumulative returns and drawdowns.
-- **Optimization**: Provides tools for portfolio optimization based on historical asset returns.
-
----
+- **Fetch Historical Stock Data**: Fetches stock data from Yahoo Finance for a given symbol and time period.
+- **Portfolio Performance Metrics**: Includes metrics like Sharpe Ratio, Sortino Ratio, Max Drawdown, and Calmar Ratio.
+- **Portfolio Optimization**: Optimizes portfolio weights using the Efficient Frontier, maximizing the Sharpe ratio, minimizing variance, and targeting a specific return.
+- **Backtest Visualization**: Visualizes backtesting results, including cumulative returns and equity curves.
+- **Risk Management**: Includes stop-loss functionality for backtesting portfolio strategies.
 
 ## Installation
 
-To get started, clone the repository and install the required dependencies.
+1. **Clone the Repository:**
+    ```bash
+    git clone https://github.com/yourusername/stock-portfolio-analysis.git
+    cd stock-portfolio-analysis
+    ```
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/yourusername/quantitative-trading-backtesting.git
-   cd quantitative-trading-backtesting
+2. **Install Dependencies:**
+    You can install the required Python libraries using `pip` or `conda`:
+    
+    Using `pip`:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
-2. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+    Or using `conda`:
+    ```bash
+    conda install --file requirements.txt
+    ```
 
-   Make sure you have the following Python libraries:
-   - `yfinance` (for fetching stock data)
-   - `pandas` (for data manipulation)
-   - `numpy` (for numerical operations)
-   - `matplotlib` (for plotting results)
-   - `scipy` (for optimization)
+   Dependencies include:
+   - `yfinance`: For fetching stock data from Yahoo Finance.
+   - `pandas`: For data manipulation.
+   - `numpy`: For numerical operations.
+   - `matplotlib`: For visualizations.
+   - `scipy`: For optimization functions.
+   - `seaborn`: For enhanced data visualizations.
 
----
+3. **Create a Virtual Environment (Optional but recommended):**
 
-## Usage Examples
+    If you want to set up a virtual environment:
+    ```bash
+    python -m venv venv
+    source venv/bin/activate   # On Windows: venv\Scripts\activate
+    pip install -r requirements.txt
+    ```
 
-### 1. Import Libraries
+## Usage
+
+### Fetching Stock Data
+
+You can fetch historical stock data for a given symbol and period using the `fetch_stock_data` function:
 
 ```python
 import yfinance as yf
+from your_module import fetch_stock_data
+
+symbol = 'AAPL'
+data = fetch_stock_data(symbol, period='1y')
+print(data.head())
+```
+
+### Calculating Portfolio Metrics
+
+You can calculate various portfolio metrics like the **Sharpe Ratio**, **Sortino Ratio**, and **Max Drawdown**:
+
+```python
 import pandas as pd
-from utils import fetch_stock_data, preprocess_data, visualize_backtest_results, \
-                   calculate_sharpe_ratio, calculate_max_drawdown, analyze_win_rate, \
-                   apply_stop_loss, analyze_drawdown, optimize_portfolio
+from your_module import calculate_sharpe_ratio, calculate_max_drawdown, calculate_sortino_ratio
+
+# Assuming `returns` is a pandas Series of daily returns
+returns = pd.Series([0.01, -0.02, 0.03, 0.04, -0.01])
+
+sharpe = calculate_sharpe_ratio(returns)
+max_drawdown = calculate_max_drawdown(returns)
+sortino = calculate_sortino_ratio(returns)
+
+print(f"Sharpe Ratio: {sharpe}")
+print(f"Max Drawdown: {max_drawdown}%")
+print(f"Sortino Ratio: {sortino}")
 ```
 
-### 2. Fetch Stock Data
+### Optimizing Portfolio Weights
 
-Use the `fetch_stock_data` function to retrieve historical stock data.
-
-```python
-# Fetch historical stock data for Apple
-symbol = 'AAPL'  # Replace with your desired stock symbol
-data = fetch_stock_data(symbol)
-
-# Optionally preprocess data (e.g., fill missing values, normalize)
-data = preprocess_data(data)  # Set normalize=True to apply normalization
-```
-
-### 3. Implement a Trading Strategy
-
-Here's an example of implementing a **Moving Average Crossover** strategy:
+Optimize portfolio weights based on historical returns:
 
 ```python
-def moving_average_crossover(data, short_window, long_window):
-    """
-    Implements a simple moving average crossover strategy.
+from your_module import optimize_portfolio
+import pandas as pd
 
-    Args:
-        data: DataFrame containing stock data with 'Close' column.
-        short_window: Window size for the short moving average.
-        long_window: Window size for the long moving average.
-
-    Returns:
-        Pandas Series with trading signals (1.0 for buy, -1.0 for sell, 0.0 for hold).
-    """
-    short_ma = data['Close'].rolling(window=short_window).mean()
-    long_ma = data['Close'].rolling(window=long_window).mean()
-
-    signals = pd.Series(0.0, index=data.index)
-    signals[short_ma > long_ma] = 1.0  # Buy signal
-    signals[short_ma < long_ma] = -1.0  # Sell signal
-
-    return signals
-
-# Apply the strategy to generate trading signals
-signals = moving_average_crossover(data, short_window=20, long_window=50)
-```
-
-### 4. Backtest the Strategy
-
-To backtest the strategy, combine the trading signals with daily returns and apply risk management.
-
-```python
-# Calculate daily returns
-daily_returns = data['Close'].pct_change()
-
-# Create a DataFrame with returns and signals
-results = pd.DataFrame({'Close': data['Close'], 'Returns': daily_returns, 'Signal': signals})
-
-# Apply stop-loss (optional)
-results = apply_stop_loss(results, stop_loss_pct=0.05)
-
-# Calculate key performance metrics
-sharpe_ratio = calculate_sharpe_ratio(results['Returns'])
-max_drawdown = analyze_drawdown(results)  # Maximum drawdown in percentage
-win_rate = analyze_win_rate(results)
-
-# Output metrics
-print("Sharpe Ratio:", sharpe_ratio)
-print("Maximum Drawdown:", max_drawdown, "%")
-print("Win Rate:", win_rate, "%")
-
-# Visualize the backtest results
-visualize_backtest_results(results)
-```
-
-### 5. Portfolio Optimization
-
-If you have return data for multiple assets, use the following code to optimize portfolio weights for maximum Sharpe Ratio.
-
-```python
-# Example: Assuming you have return data for multiple assets
-asset_returns = pd.DataFrame({
-    'Asset1': [0.01, 0.02, -0.01, 0.005],  # Example returns
-    'Asset2': [0.005, 0.015, 0.01, -0.02],
-    # Add more assets here
+# Assuming `returns_df` is a DataFrame of asset returns
+returns_df = pd.DataFrame({
+    'Asset1': [0.01, -0.02, 0.03, 0.01],
+    'Asset2': [0.03, 0.01, -0.02, 0.04],
+    'Asset3': [-0.01, 0.02, 0.01, 0.03]
 })
 
-# Optimize portfolio for maximum Sharpe Ratio
-optimal_weights = optimize_portfolio(asset_returns)['max_sharpe']
+optimized = optimize_portfolio(returns_df)
 
-# Output optimal portfolio weights
-print("Optimal Portfolio Weights:", optimal_weights['weights'])
+print(f"Min Variance Portfolio: {optimized['min_variance']}")
+print(f"Max Sharpe Portfolio: {optimized['max_sharpe']}")
 ```
 
----
+### Visualizing Backtest Results
 
-## Key Functions Overview
+To visualize backtest results, use the `visualize_backtest_results` function:
 
-- **`fetch_stock_data(symbol)`**: Fetches historical stock data from Yahoo Finance.
-- **`preprocess_data(data, normalize=False)`**: Preprocesses stock data (e.g., filling missing values and optional normalization).
-- **`moving_average_crossover(data, short_window, long_window)`**: Implements a simple moving average crossover strategy.
-- **`apply_stop_loss(results, stop_loss_pct)`**: Applies a stop-loss mechanism with a specified percentage threshold.
-- **`calculate_sharpe_ratio(returns)`**: Computes the Sharpe Ratio based on strategy returns.
-- **`analyze_drawdown(results)`**: Calculates maximum drawdown from backtest results.
-- **`analyze_win_rate(results)`**: Computes the win rate of the strategy.
-- **`visualize_backtest_results(results)`**: Plots the equity curve and cumulative returns of the backtest.
-- **`optimize_portfolio(asset_returns)`**: Optimizes asset weights for a given portfolio using the Efficient Frontier and other criteria.
+```python
+from your_module import visualize_backtest_results
+import pandas as pd
 
----
+# Assuming `backtest_results` is a DataFrame containing backtest results
+backtest_results = pd.DataFrame({
+    'Cumulative_Returns': [0.01, 0.03, 0.05, 0.08],
+    'Strategy_Cumulative_Returns': [0.02, 0.04, 0.06, 0.10],
+    'Portfolio_Value': [10000, 10200, 10500, 10800]
+})
 
-## Requirements
-
-Make sure to install the required Python libraries:
-
-```bash
-pip install yfinance pandas numpy matplotlib scipy
+visualize_backtest_results(backtest_results)
 ```
 
----
+### Applying Stop-Loss to Backtesting
+
+You can apply a stop-loss strategy to your backtesting results:
+
+```python
+from your_module import apply_stop_loss
+import pandas as pd
+
+# Assuming `backtest_results` contains the necessary columns ('Close', 'Position', etc.)
+backtest_results = pd.DataFrame({
+    'Close': [150, 145, 160, 155],
+    'Position': [1, 1, 0, 1],
+    'Strategy_Returns': [0.01, -0.02, 0.03, -0.01]
+})
+
+modified_results = apply_stop_loss(backtest_results, stop_loss_pct=0.05)
+print(modified_results)
+```
+
+## Additional Notes
+
+- **Data Frequency**: The data is daily by default. Ensure your portfolio return calculations take this into account when modifying functions.
+- **Risk-free Rate**: The default risk-free rate is set at 1% annual. Adjust this as needed for your analysis.
+- **Backtesting**: The backtesting results assume you have a strategy that generates buy/sell signals. Modify the code to suit your strategy.
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-```
-
-### Explanation of Changes:
-- **Clarified Functionality**: The `README.md` now clearly explains the project’s purpose, key features, and how to use the code.
-- **Detailed Code Examples**: Added explanations and more consistent formatting for the examples.
-- **Installation Instructions**: Provided the installation steps for dependencies.
-- **Metrics and Optimization**: Expanded on the backtesting, performance metrics, and portfolio optimization functionality. 
-

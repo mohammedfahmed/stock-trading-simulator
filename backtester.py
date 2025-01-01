@@ -2,13 +2,13 @@ import pandas as pd
 import numpy as np
 
 class Backtester:
-    def __init__(self, initial_balance=10000, transaction_cost=0.001):
+    def __init__(self, initial_balance=10000, transaction_cost=10):
         """
         Initializes the Backtester with initial balance and optional transaction cost.
 
         Args:
             initial_balance (float): Initial capital for backtesting.
-            transaction_cost (float): Transaction cost percentage per trade.
+            transaction_cost (float): Transaction cost per trade (fixed amount).
         """
         self.initial_balance = initial_balance
         self.transaction_cost = transaction_cost
@@ -28,34 +28,28 @@ class Backtester:
         """
         results = signals.to_frame(name='Signal').copy()
         results['Close'] = df['Close']
-        results['Position'] = results['Signal'] 
+        results['Position'] = 0  # Position: 0 = no position, 1 = holding shares
         results['Balance'] = self.initial_balance
         results['Shares'] = 0
-        results['Portfolio_Value'] = self.initial_balance 
+        results['Portfolio_Value'] = self.initial_balance
         results['Transaction_Cost'] = 0
 
         for i in range(1, len(results)):
             prev_pos = results.iloc[i-1]['Position']
-            curr_pos = results.iloc[i]['Position']
+            curr_pos = results.iloc[i]['Signal']
 
             if prev_pos == 0 and curr_pos == 1:  # Buy
+                # Calculate how many shares can be bought with the available balance
                 shares_to_buy = results.iloc[i]['Balance'] / results.iloc[i]['Close']
-                transaction_cost = shares_to_buy * results.iloc[i]['Close'] * self.transaction_cost
+                transaction_cost = self.transaction_cost
                 results.at[results.index[i], 'Shares'] = shares_to_buy
                 results.at[results.index[i], 'Balance'] -= (shares_to_buy * results.iloc[i]['Close'] + transaction_cost)
-            elif prev_pos == 1 and curr_pos == -1:  # Sell (Long to Short)
-                transaction_cost = results.iloc[i]['Shares'] * results.iloc[i]['Close'] * self.transaction_cost
+                results.at[results.index[i], 'Position'] = 1
+            elif prev_pos == 1 and curr_pos == -1:  # Sell
+                transaction_cost = self.transaction_cost
                 results.at[results.index[i], 'Balance'] += (results.iloc[i]['Shares'] * results.iloc[i]['Close'] - transaction_cost)
-                results.at[results.index[i], 'Shares'] = -results.iloc[i]['Shares']  # Short position
-            elif prev_pos == -1 and curr_pos == 1:  # Buy to cover shorts
-                shares_to_cover = abs(results.iloc[i]['Shares'])
-                transaction_cost = shares_to_cover * results.iloc[i]['Close'] * self.transaction_cost
-                results.at[results.index[i], 'Balance'] -= (shares_to_cover * results.iloc[i]['Close'] + transaction_cost)
-                results.at[results.index[i], 'Shares'] = 0  # Close short position
-            elif prev_pos == -1 and curr_pos == -1:  # Short more
-                additional_shares = (results.iloc[i]['Balance'] / results.iloc[i]['Close']) * 2
-                transaction_cost = additional_shares * results.iloc[i]['Close'] * self.transaction_cost
-                results.at[results.index[i], 'Shares'] -= additional_shares
+                results.at[results.index[i], 'Shares'] = 0
+                results.at[results.index[i], 'Position'] = 0
 
             # Update Portfolio Value
             results.at[results.index[i], 'Portfolio_Value'] = results.iloc[i]['Balance'] + (results.iloc[i]['Shares'] * results.iloc[i]['Close'])
