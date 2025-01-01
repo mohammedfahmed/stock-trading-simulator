@@ -22,120 +22,89 @@ def main():
     st.title("Trading Strategy Dashboard")
 
     # Configuration section
-    st.subheader("Configuration")
-    config_col1, config_col2, config_col3 = st.columns(3)
-
-    with config_col1:
-        ticker = st.text_input("Stock Symbol", value="AAPL")
-    with config_col2:
-        period = st.selectbox("Time Period", ["1y", "2y", "5y", "max"], index=0)
-    with config_col3:
-        strategy_type = st.selectbox(
-            "Strategy Type",
-            [
-                "Moving Average Crossover",
-                "RSI",
-                "MACD",
-                "Bollinger Bands",
-                "Triple MA Crossover",
-                "Mean Reversion",
-            ],
-            index=0,
-        )
+    st.sidebar.header("Configuration")
+    ticker = st.sidebar.text_input("Stock Symbol", value="AAPL")
+    period = st.sidebar.selectbox("Time Period", ["1y", "2y", "5y", "max"], index=0)
+    strategy_type = st.sidebar.selectbox(
+        "Strategy Type",
+        [
+            "Moving Average Crossover",
+            "RSI",
+            "MACD",
+            "Bollinger Bands",
+            "Triple MA Crossover",
+            "Mean Reversion",
+        ],
+        index=0,
+    )
 
     # Strategy parameters section
-    st.subheader("Strategy Parameters")
-    col1, col2 = st.columns(2)
-
-    strategy_params = {}
-
-    if strategy_type == "Moving Average Crossover":
-        with col1:
-            short_window = st.slider("Short MA Window", 5, 50, 20)
-        with col2:
-            long_window = st.slider("Long MA Window", 20, 200, 50)
-        strategy_params = {"short_window": short_window, "long_window": long_window}
-
-    elif strategy_type == "RSI":
-        with col1:
-            rsi_period = st.slider("RSI Period", 5, 30, 14)
-            oversold = st.slider("Oversold Threshold", 20, 40, 30)
-        with col2:
-            overbought = st.slider("Overbought Threshold", 60, 80, 70)
-        strategy_params = {
-            "window": rsi_period,
-            "oversold": oversold,
-            "overbought": overbought,
-        }
-
-    elif strategy_type == "MACD":
-        with col1:
-            fast_period = st.slider("Fast Period", 8, 20, 12)
-            slow_period = st.slider("Slow Period", 20, 30, 26)
-        with col2:
-            signal_period = st.slider("Signal Period", 5, 15, 9)
-        strategy_params = {
-            "fast": fast_period,
-            "slow": slow_period,
-            "signal": signal_period,
-        }
-
-    elif strategy_type == "Bollinger Bands":
-        with col1:
-            bb_period = st.slider("Period", 10, 50, 20)
-        with col2:
-            std_dev = st.slider("Standard Deviation", 1.0, 3.0, 2.0, 0.1)
-        strategy_params = {"window": bb_period, "std_dev": std_dev}
-
-    elif strategy_type == "Triple MA Crossover":
-        with col1:
-            fast_window = st.slider("Fast MA Window", 3, 15, 5)
-            medium_window = st.slider("Medium MA Window", 15, 50, 21)
-        with col2:
-            slow_window = st.slider("Slow MA Window", 50, 200, 63)
-        strategy_params = {
-            "short_window": fast_window,
-            "mid_window": medium_window,
-            "long_window": slow_window,
-        }
-
-    else:  # Mean Reversion
-        with col1:
-            lookback = st.slider("Lookback Period", 10, 100, 20)
-        with col2:
-            entry_threshold = st.slider("Entry Threshold", 1.0, 3.0, 2.0, 0.1)
-        strategy_params = {"window": lookback, "std_dev": entry_threshold}
+    st.sidebar.header("Strategy Parameters")
+    strategy_params = configure_strategy_parameters(strategy_type)
 
     # Load data
     raw_data = fetch_stock_data(ticker, period)
-    if raw_data is not None:
-        df = preprocess_data(raw_data)
+    if raw_data is None or raw_data.empty:
+        st.error(f"No data available for {ticker}. Please check the stock symbol.")
+        return
 
-        # Backtesting
-        backtester = Backtester()
-        
-        if strategy_type == "Moving Average Crossover":
-            signals = moving_average_crossover(df, **strategy_params)
-        elif strategy_type == "RSI":
-            signals = rsi_strategy(df, **strategy_params)
-        elif strategy_type == "MACD":
-            signals = macd_strategy(df, **strategy_params)
-        elif strategy_type == "Bollinger Bands":
-            signals = bollinger_bands_strategy(df, **strategy_params)
-        elif strategy_type == "Triple MA Crossover":
-            signals = triple_ma_strategy(df, **strategy_params)
-        else:
-            signals = mean_reversion_strategy(df, **strategy_params)
+    df = preprocess_data(raw_data)
 
-        results = backtester.backtest(df, signals)
+    # Backtesting
+    backtester = Backtester()
+    signals = select_strategy(strategy_type, df, strategy_params)
+    results = backtester.backtest(df, signals)
 
-        # Display Metrics and Visualizations
-        st.subheader("Performance Metrics")
-        metrics = backtester.calculate_metrics(results)
-        st.write(metrics)
+    # Display Metrics and Visualizations
+    st.subheader("Performance Metrics")
+    metrics = backtester.calculate_metrics(results)
+    st.write(metrics)
 
-        st.subheader("Backtest Visualization")
-        visualize_backtest_results(results)
+    st.subheader("Backtest Visualization")
+    visualize_backtest_results(results)
+
+def configure_strategy_parameters(strategy_type):
+    """Configures parameters based on the selected strategy type."""
+    params = {}
+
+    if strategy_type == "Moving Average Crossover":
+        params["short_window"] = st.sidebar.slider("Short MA Window", 5, 50, 20)
+        params["long_window"] = st.sidebar.slider("Long MA Window", 20, 200, 50)
+    elif strategy_type == "RSI":
+        params["window"] = st.sidebar.slider("RSI Period", 5, 30, 14)
+        params["oversold"] = st.sidebar.slider("Oversold Threshold", 20, 40, 30)
+        params["overbought"] = st.sidebar.slider("Overbought Threshold", 60, 80, 70)
+    elif strategy_type == "MACD":
+        params["fast"] = st.sidebar.slider("Fast Period", 8, 20, 12)
+        params["slow"] = st.sidebar.slider("Slow Period", 20, 30, 26)
+        params["signal"] = st.sidebar.slider("Signal Period", 5, 15, 9)
+    elif strategy_type == "Bollinger Bands":
+        params["window"] = st.sidebar.slider("Period", 10, 50, 20)
+        params["std_dev"] = st.sidebar.slider("Standard Deviation", 1.0, 3.0, 2.0, 0.1)
+    elif strategy_type == "Triple MA Crossover":
+        params["short_window"] = st.sidebar.slider("Fast MA Window", 3, 15, 5)
+        params["mid_window"] = st.sidebar.slider("Medium MA Window", 15, 50, 21)
+        params["long_window"] = st.sidebar.slider("Slow MA Window", 50, 200, 63)
+    elif strategy_type == "Mean Reversion":
+        params["window"] = st.sidebar.slider("Lookback Period", 10, 100, 20)
+        params["std_dev"] = st.sidebar.slider("Entry Threshold", 1.0, 3.0, 2.0, 0.1)
+
+    return params
+
+def select_strategy(strategy_type, df, strategy_params):
+    """Selects and applies the appropriate strategy based on user input."""
+    if strategy_type == "Moving Average Crossover":
+        return moving_average_crossover(df, **strategy_params)
+    elif strategy_type == "RSI":
+        return rsi_strategy(df, **strategy_params)
+    elif strategy_type == "MACD":
+        return macd_strategy(df, **strategy_params)
+    elif strategy_type == "Bollinger Bands":
+        return bollinger_bands_strategy(df, **strategy_params)
+    elif strategy_type == "Triple MA Crossover":
+        return triple_ma_strategy(df, **strategy_params)
+    elif strategy_type == "Mean Reversion":
+        return mean_reversion_strategy(df, **strategy_params)
 
 if __name__ == "__main__":
     main()

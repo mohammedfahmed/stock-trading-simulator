@@ -17,12 +17,11 @@ def fetch_stock_data(symbol, period='1y'):
         pandas.DataFrame: Historical stock data.
     """
     stock = yf.Ticker(symbol)
-    data = stock.history(period=period)
-    return data
+    return stock.history(period=period)
 
 def preprocess_data(data):
     """
-    Preprocesses the stock data.
+    Preprocesses the stock data by filling missing values.
     
     Args:
         data: pandas.DataFrame containing stock data.
@@ -30,13 +29,11 @@ def preprocess_data(data):
     Returns:
         pandas.DataFrame: Preprocessed stock data.
     """
-    # Fill missing values (if any)
-    data = data.fillna(method='ffill')
-    return data
+    return data.fillna(method='ffill')
 
 def visualize_backtest_results(results):
     """
-    Visualizes backtesting results.
+    Visualizes cumulative returns and the equity curve.
     
     Args:
         results: pandas.DataFrame containing backtesting results.
@@ -45,14 +42,14 @@ def visualize_backtest_results(results):
 
     # Plot cumulative returns
     plt.subplot(2, 1, 1)
-    plt.plot(results['Cumulative_Returns'], label='Benchmark')
-    plt.plot(results['Strategy_Cumulative_Returns'], label='Strategy')
+    plt.plot(results['Cumulative_Returns'], label='Benchmark', color='blue')
+    plt.plot(results['Strategy_Cumulative_Returns'], label='Strategy', color='orange')
     plt.title('Cumulative Returns')
     plt.legend()
 
     # Plot equity curve
     plt.subplot(2, 1, 2)
-    plt.plot(results['Portfolio_Value'])
+    plt.plot(results['Portfolio_Value'], color='green')
     plt.title('Equity Curve')
 
     plt.tight_layout()
@@ -98,10 +95,8 @@ def calculate_sortino_ratio(returns, target_return=0.0):
     Returns:
         float: Sortino Ratio.
     """
-    downside_deviation = np.sqrt(np.mean((np.minimum(returns - target_return, 0)) ** 2))
-    if downside_deviation == 0:
-        return np.inf
-    return (returns.mean() - target_return) / downside_deviation
+    downside_deviation = np.sqrt(np.mean(np.minimum(returns - target_return, 0) ** 2))
+    return (returns.mean() - target_return) / downside_deviation if downside_deviation > 0 else np.inf
 
 def calculate_calmar_ratio(returns):
     """
@@ -115,7 +110,7 @@ def calculate_calmar_ratio(returns):
     """
     annualized_return = (1 + returns).prod() ** (252 / len(returns)) - 1
     max_drawdown = calculate_max_drawdown(returns)
-    return annualized_return / (max_drawdown / 100)
+    return annualized_return / (max_drawdown / 100) if max_drawdown != 0 else np.inf
 
 def optimize_portfolio(returns, risk_free_rate=0.01, target_return=0.0):
     """
@@ -141,31 +136,16 @@ def optimize_portfolio(returns, risk_free_rate=0.01, target_return=0.0):
     def neg_sharpe_ratio(weights):
         return -((portfolio_return(weights) - risk_free_rate) / portfolio_volatility(weights))
 
-    # Constraints: weights must sum to 1
-    constraints = ({'type': 'eq', 'fun': lambda x: np.sum(x) - 1})
+    constraints = {'type': 'eq', 'fun': lambda x: np.sum(x) - 1}
+    bounds = tuple((0, 1) for _ in range(returns.shape[1]))
+    initial_weights = np.array([1.0 / returns.shape[1]] * returns.shape[1])
 
-    # Bounds: weights must be between 0 and 1
-    bounds = tuple((0, 1) for x in range(len(returns.columns)))
-
-    # Initial guess: equal weights
-    initial_weights = np.array(len(returns.columns) * [1. / len(returns.columns)])
-
-    # Minimize variance
     min_variance_weights = minimize(min_variance, initial_weights, bounds=bounds, constraints=constraints)
-
-    # Maximize Sharpe Ratio
     max_sharpe_weights = minimize(neg_sharpe_ratio, initial_weights, bounds=bounds, constraints=constraints)
-
-    # Target return portfolio
-    def target_return_portfolio(weights):
-        return portfolio_return(weights) - target_return
-
-    target_return_weights = minimize(min_variance, initial_weights, bounds=bounds, constraints=(constraints, {'type': 'eq', 'fun': target_return_portfolio}))
 
     return {
         'min_variance': {'weights': min_variance_weights.x, 'volatility': portfolio_volatility(min_variance_weights.x)},
-        'max_sharpe': {'weights': max_sharpe_weights.x, 'volatility': portfolio_volatility(max_sharpe_weights.x)},
-        'target_return': {'weights': target_return_weights.x, 'volatility': portfolio_volatility(target_return_weights.x)}
+        'max_sharpe': {'weights': max_sharpe_weights.x, 'volatility': portfolio_volatility(max_sharpe_weights.x)}
     }
 
 def analyze_drawdown(results):
@@ -181,8 +161,7 @@ def analyze_drawdown(results):
     cumulative_returns = results['Strategy_Cumulative_Returns']
     rolling_max = cumulative_returns.cummax()
     drawdown = (cumulative_returns - rolling_max) / rolling_max
-    max_drawdown = drawdown.min() * 100
-    return max_drawdown
+    return drawdown.min() * 100
 
 def analyze_win_rate(results):
     """
@@ -195,9 +174,8 @@ def analyze_win_rate(results):
         float: Win rate percentage.
     """
     winning_trades = (results['Strategy_Returns'] > 0).sum()
-    total_trades = (results['Position'].diff() != 0).sum()
-    win_rate = (winning_trades / total_trades) * 100 if total_trades > 0 else 0
-    return win_rate
+    total_trades = results['Position'].diff().ne(0).sum()
+    return (winning_trades / total_trades) * 100 if total_trades > 0 else 0
 
 def apply_stop_loss(results, stop_loss_pct=0.05):
     """
@@ -213,11 +191,10 @@ def apply_stop_loss(results, stop_loss_pct=0.05):
     results['Stop_Loss_Price'] = results['Close'] * (1 - stop_loss_pct)
 
     for i in range(1, len(results)):
-        if results.iloc[i]['Position'] == 1:  # Long position
-            if results.iloc[i]['Close'] < results.iloc[i]['Stop_Loss_Price']:
-                results.at[results.index[i], 'Signal'] = -1  # Sell signal
-                results.at[results.index[i], 'Stop_Loss_Triggered'] = True
-            else:
-                results.at[results.index[i], 'Stop_Loss_Triggered'] = False
+        if results.iloc[i]['Position'] == 1 and results.iloc[i]['Close'] < results.iloc[i]['Stop_Loss_Price']:
+            results.at[results.index[i], 'Signal'] = -1  # Sell signal
+            results.at[results.index[i], 'Stop_Loss_Triggered'] = True
+        else:
+            results.at[results.index[i], 'Stop_Loss_Triggered'] = False
 
     return results
