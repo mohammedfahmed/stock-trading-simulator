@@ -20,11 +20,11 @@ class Backtester:
         Args:
             df (pandas.DataFrame): DataFrame containing stock data.
             signals (pandas.Series): Series containing trading signals 
-                                    (1.0: Buy, -1.0: Sell, 0.0: Hold).
+                                      (1.0: Buy, -1.0: Sell, 0.0: Hold).
 
         Returns:
             pandas.DataFrame: DataFrame containing backtesting results 
-                             (balance, shares, portfolio value, returns, etc.).
+                                (balance, shares, portfolio value, returns, etc.).
         """
         results = signals.to_frame(name='Signal').copy()
         results['Close'] = df['Close']
@@ -43,30 +43,30 @@ class Backtester:
                 transaction_cost = shares_to_buy * results.iloc[i]['Close'] * self.transaction_cost
                 results.at[results.index[i], 'Shares'] = shares_to_buy
                 results.at[results.index[i], 'Balance'] -= (shares_to_buy * results.iloc[i]['Close'] + transaction_cost)
-            elif prev_pos == 1 and curr_pos == -1:  # Sell
+            elif prev_pos == 1 and curr_pos == -1:  # Sell (Long to Short)
                 transaction_cost = results.iloc[i]['Shares'] * results.iloc[i]['Close'] * self.transaction_cost
                 results.at[results.index[i], 'Balance'] += (results.iloc[i]['Shares'] * results.iloc[i]['Close'] - transaction_cost)
-                results.at[results.index[i], 'Shares'] = 0
-            elif prev_pos == -1 and curr_pos == 1:  # Short to Long
-                shares_to_buy = (results.iloc[i]['Balance'] / results.iloc[i]['Close']) * 2 
-                transaction_cost = shares_to_buy * results.iloc[i]['Close'] * self.transaction_cost
-                results.at[results.index[i], 'Shares'] = shares_to_buy
-                results.at[results.index[i], 'Balance'] -= (shares_to_buy * results.iloc[i]['Close'] + transaction_cost)
-            elif prev_pos == 1 and curr_pos == -1:  # Long to Short
-                transaction_cost = results.iloc[i]['Shares'] * results.iloc[i]['Close'] * self.transaction_cost
-                results.at[results.index[i], 'Balance'] += (results.iloc[i]['Shares'] * results.iloc[i]['Close'] - transaction_cost)
-                results.at[results.index[i], 'Shares'] = -results.iloc[i]['Shares'] 
+                results.at[results.index[i], 'Shares'] = -results.iloc[i]['Shares']  # Short position
+            elif prev_pos == -1 and curr_pos == 1:  # Buy to cover shorts
+                shares_to_cover = abs(results.iloc[i]['Shares'])
+                transaction_cost = shares_to_cover * results.iloc[i]['Close'] * self.transaction_cost
+                results.at[results.index[i], 'Balance'] -= (shares_to_cover * results.iloc[i]['Close'] + transaction_cost)
+                results.at[results.index[i], 'Shares'] = 0  # Close short position
+            elif prev_pos == -1 and curr_pos == -1:  # Short more
+                additional_shares = (results.iloc[i]['Balance'] / results.iloc[i]['Close']) * 2
+                transaction_cost = additional_shares * results.iloc[i]['Close'] * self.transaction_cost
+                results.at[results.index[i], 'Shares'] -= additional_shares
 
             # Update Portfolio Value
             results.at[results.index[i], 'Portfolio_Value'] = results.iloc[i]['Balance'] + (results.iloc[i]['Shares'] * results.iloc[i]['Close'])
 
-        # Calculate Returns
-        results['Returns'] = results['Close'].pct_change().fillna(0)
-        results['Strategy_Returns'] = results['Portfolio_Value'].pct_change().fillna(0)
+            # Calculate Returns
+            results['Returns'] = results['Close'].pct_change().fillna(0)
+            results['Strategy_Returns'] = results['Portfolio_Value'].pct_change().fillna(0)
 
-        # Calculate Cumulative Returns
-        results['Cumulative_Returns'] = (1 + results['Returns']).cumprod()
-        results['Strategy_Cumulative_Returns'] = results['Portfolio_Value'] / self.initial_balance
+            # Calculate Cumulative Returns
+            results['Cumulative_Returns'] = (1 + results['Returns']).cumprod()
+            results['Strategy_Cumulative_Returns'] = results['Portfolio_Value'] / self.initial_balance
 
         return results
 
@@ -79,7 +79,7 @@ class Backtester:
 
         Returns:
             dict: Dictionary containing performance metrics 
-                 (total_return, sharpe_ratio, max_drawdown, win_rate).
+                    (total_return, sharpe_ratio, max_drawdown, win_rate).
         """
         if 'Strategy_Returns' not in results.columns:
             return {
