@@ -43,6 +43,10 @@ class Backtester:
         buy_price = 0.0
 
         for i in range(len(results)):
+            if results.index[i] not in results.index:
+                # Skip invalid indices
+                continue
+                
             if results['Signal'].iloc[i] == 1 and not position_open:
                 # Execute buy action
                 shares = (results['Balance'].iloc[i] - self.transaction_cost) / results['Close'].iloc[i]
