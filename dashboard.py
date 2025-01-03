@@ -21,7 +21,7 @@ st.set_page_config(
 def main():
     st.title("Trading Strategy Dashboard")
 
-    # Configuration section
+    # Sidebar: Configuration section
     st.sidebar.header("Configuration")
     ticker = st.sidebar.text_input("Stock Symbol", value="AAPL")
     period = st.sidebar.selectbox("Time Period", ["1y", "2y", "5y", "max"], index=0)
@@ -38,11 +38,11 @@ def main():
         index=0,
     )
 
-    # Strategy parameters section
+    # Sidebar: Strategy parameters section
     st.sidebar.header("Strategy Parameters")
     strategy_params = configure_strategy_parameters(strategy_type)
 
-    # Load data
+    # Load and preprocess data
     raw_data = fetch_stock_data(ticker, period)
     if raw_data is None or raw_data.empty:
         st.error(f"No data available for {ticker}. Please check the stock symbol.")
@@ -55,7 +55,7 @@ def main():
     signals = select_strategy(strategy_type, df, strategy_params)
     results = backtester.backtest(df, signals)
 
-    # Display Metrics and Visualizations
+    # Display metrics and visualizations
     st.subheader("Performance Metrics")
     metrics = backtester.calculate_metrics(results)
     st.write(metrics)
@@ -93,18 +93,19 @@ def configure_strategy_parameters(strategy_type):
 
 def select_strategy(strategy_type, df, strategy_params):
     """Selects and applies the appropriate strategy based on user input."""
-    if strategy_type == "Moving Average Crossover":
-        return moving_average_crossover(df, **strategy_params)
-    elif strategy_type == "RSI":
-        return rsi_strategy(df, **strategy_params)
-    elif strategy_type == "MACD":
-        return macd_strategy(df, **strategy_params)
-    elif strategy_type == "Bollinger Bands":
-        return bollinger_bands_strategy(df, **strategy_params)
-    elif strategy_type == "Triple MA Crossover":
-        return triple_ma_strategy(df, **strategy_params)
-    elif strategy_type == "Mean Reversion":
-        return mean_reversion_strategy(df, **strategy_params)
+    strategies = {
+        "Moving Average Crossover": moving_average_crossover,
+        "RSI": rsi_strategy,
+        "MACD": macd_strategy,
+        "Bollinger Bands": bollinger_bands_strategy,
+        "Triple MA Crossover": triple_ma_strategy,
+        "Mean Reversion": mean_reversion_strategy,
+    }
+    strategy_function = strategies.get(strategy_type)
+    if strategy_function:
+        return strategy_function(df, **strategy_params)
+    else:
+        raise ValueError(f"Unknown strategy type: {strategy_type}")
 
 if __name__ == "__main__":
     main()
