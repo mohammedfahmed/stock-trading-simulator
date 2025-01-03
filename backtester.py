@@ -16,59 +16,66 @@ class Backtester:
         self.initial_balance = initial_balance
         self.transaction_cost = transaction_cost
 
-
-    def backtest(self, df, signals):
+    def buy_backtest(self, df, signals, take_profit=0.05, stop_loss=0.02):
         """
-        Performs backtesting on the strategy using portfolio simulation (vectorized).
+        Simulates backtesting by buying based on signals and selling only on take-profit or stop-loss.
 
         Args:
-            df (pandas.DataFrame): DataFrame containing stock data.
-            signals (pandas.Series): Series containing trading signals 
-                                    (1.0: Buy, -1.0: Sell, 0.0: Hold).
+            df (pandas.DataFrame): DataFrame containing stock data with 'Close' prices.
+            signals (pandas.Series): Series containing buy signals (1.0: Buy, 0.0: Hold).
+            take_profit (float): Take-profit percentage (e.g., 0.05 for 5% profit).
+            stop_loss (float): Stop-loss percentage (e.g., 0.02 for 2% loss).
 
         Returns:
-            pandas.DataFrame: DataFrame containing backtesting results 
-                                (balance, shares, portfolio value, returns, etc.).
+            pandas.DataFrame: DataFrame containing backtesting results.
         """
-        # Initialize results DataFrame
         results = signals.to_frame(name='Signal').copy()
         results['Close'] = df['Close']
-        results['Position'] = 0  # Start with no position
         results['Shares'] = 0.0
         results['Balance'] = self.initial_balance
         results['Transaction_Cost'] = 0.0
         results['Portfolio_Value'] = self.initial_balance
+        results['Position'] = 0
+        results['Buy_Price'] = np.nan
 
-        # Identify buy and sell signals
-        buy_signals = results['Signal'] == 1
-        sell_signals = results['Signal'] == -1
+        # Initialize variables for tracking positions
+        position_open = False
+        buy_price = 0
 
-        # Calculate shares bought and sold
-        results.loc[buy_signals, 'Shares'] = (results['Balance'] - self.transaction_cost) / results['Close']
-        results.loc[sell_signals, 'Shares'] = 0
+        for i in range(len(results)):
+            if results['Signal'].iloc[i] == 1 and not position_open:
+                # Buy the stock
+                shares = (results['Balance'].iloc[i] - self.transaction_cost) / results['Close'].iloc[i]
+                results.at[i, 'Shares'] = shares
+                results.at[i, 'Transaction_Cost'] = self.transaction_cost
+                results.at[i, 'Balance'] -= shares * results['Close'].iloc[i] + self.transaction_cost
+                results.at[i, 'Position'] = 1
+                results.at[i, 'Buy_Price'] = results['Close'].iloc[i]
+                buy_price = results['Close'].iloc[i]
+                position_open = True
 
-        # Update balance for buy and sell trades
-        results.loc[buy_signals, 'Transaction_Cost'] = self.transaction_cost
-        results.loc[buy_signals, 'Balance'] -= results['Shares'] * results['Close'] + self.transaction_cost
-        results.loc[sell_signals, 'Balance'] += results.shift(1)['Shares'] * results['Close'] - self.transaction_cost
+            elif position_open:
+                # Check for take-profit or stop-loss
+                current_price = results['Close'].iloc[i]
+                price_change = (current_price - buy_price) / buy_price
 
-        # Update positions based on signals
-        results['Position'] = buy_signals.astype(int) - sell_signals.astype(int)
+                if price_change >= take_profit or price_change <= -stop_loss:
+                    # Sell the stock
+                    shares = results['Shares'].iloc[i - 1]
+                    results.at[i, 'Balance'] += shares * current_price - self.transaction_cost
+                    results.at[i, 'Transaction_Cost'] = self.transaction_cost
+                    results.at[i, 'Shares'] = 0
+                    results.at[i, 'Position'] = 0
+                    position_open = False
 
-        # Forward-fill position and balance to track holding periods
-        results['Position'] = results['Position'].replace(0, np.nan).ffill().fillna(0).astype(int)
-        results['Balance'] = results['Balance'].fillna(method='ffill')
+            # Carry forward values for non-trading days
+            if i > 0:
+                results.at[i, 'Shares'] = results['Shares'].iloc[i - 1] if results['Shares'].iloc[i] == 0 else results['Shares'].iloc[i]
+                results.at[i, 'Balance'] = results['Balance'].iloc[i] if results['Balance'].iloc[i] > 0 else results['Balance'].iloc[i - 1]
+                results.at[i, 'Position'] = results['Position'].iloc[i - 1]
 
         # Calculate portfolio value
         results['Portfolio_Value'] = results['Balance'] + (results['Shares'] * results['Close'])
-
-        # Calculate returns
-        results['Returns'] = results['Close'].pct_change().fillna(0)
-        results['Strategy_Returns'] = results['Portfolio_Value'].pct_change().fillna(0)
-
-        # Calculate cumulative returns
-        results['Cumulative_Returns'] = (1 + results['Returns']).cumprod()
-        results['Strategy_Cumulative_Returns'] = results['Portfolio_Value'] / self.initial_balance
 
         return results
 
@@ -83,7 +90,7 @@ class Backtester:
             dict: Dictionary containing performance metrics 
                     (total_return, sharpe_ratio, max_drawdown, win_rate).
         """
-        if 'Strategy_Returns' not in results.columns:
+        if 'Portfolio_Value' not in results.columns:
             return {
                 'total_return': 0,
                 'sharpe_ratio': 0,
@@ -92,26 +99,22 @@ class Backtester:
             }
 
         # Total Return
-        metrics = {'total_return': (results['Strategy_Cumulative_Returns'].iloc[-1] - 1) * 100}
+        metrics = {'total_return': (results['Portfolio_Value'].iloc[-1] - self.initial_balance) / self.initial_balance * 100}
 
         # Sharpe Ratio (assuming risk-free rate of 0.01)
         risk_free_rate = 0.01
-        excess_returns = results['Strategy_Returns'] - risk_free_rate / 252
+        daily_returns = results['Portfolio_Value'].pct_change().fillna(0)
+        excess_returns = daily_returns - risk_free_rate / 252
         metrics['sharpe_ratio'] = (np.sqrt(252) * excess_returns.mean() / excess_returns.std()) if excess_returns.std() > 0 else 0
 
         # Maximum Drawdown
-        cum_returns = results['Strategy_Cumulative_Returns']
-        rolling_max = cum_returns.expanding().max()
-        drawdowns = (cum_returns - rolling_max) / rolling_max
+        rolling_max = results['Portfolio_Value'].expanding().max()
+        drawdowns = (results['Portfolio_Value'] - rolling_max) / rolling_max
         metrics['max_drawdown'] = drawdowns.min() * 100
 
         # Win Rate
-        winning_trades = (results['Strategy_Returns'] > 0).sum()
-        total_trades = (results['Signal'].isin([1, -1])).sum()
+        winning_trades = (daily_returns > 0).sum()
+        total_trades = len(daily_returns[daily_returns != 0])
         metrics['win_rate'] = (winning_trades / total_trades) * 100 if total_trades > 0 else 0
 
         return metrics
-
-
-
-
