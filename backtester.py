@@ -42,6 +42,8 @@ class Backtester:
         position_open = False
         buy_price = 0.0
 
+        st.dataframe(results)
+
         for i in range(len(results)):
             if results.index[i] not in results.index:
                 # Skip invalid indices
