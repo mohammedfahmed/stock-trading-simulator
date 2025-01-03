@@ -19,80 +19,79 @@ class Backtester:
         self.initial_balance = initial_balance
         self.transaction_cost = transaction_cost
 
+    def simulate_trading(self, df, signals, take_profit=0.05, stop_loss=0.02):
+        """
+        Simulates backtesting by buying based on signals and selling only on take-profit or stop-loss.
 
-def simulate_trading(self, df, signals, take_profit=0.05, stop_loss=0.02):
-    """
-    Simulates backtesting by buying based on signals and selling only on take-profit or stop-loss.
+        Args:
+            df (pandas.DataFrame): DataFrame containing stock data with 'Close' prices.
+            signals (pandas.Series): Series containing buy signals (1.0: Buy, 0.0: Hold).
+            take_profit (float): Take-profit percentage (e.g., 0.05 for 5% profit).
+            stop_loss (float): Stop-loss percentage (e.g., 0.02 for 2% loss).
 
-    Args:
-        df (pandas.DataFrame): DataFrame containing stock data with 'Close' prices.
-        signals (pandas.Series): Series containing buy signals (1.0: Buy, 0.0: Hold).
-        take_profit (float): Take-profit percentage (e.g., 0.05 for 5% profit).
-        stop_loss (float): Stop-loss percentage (e.g., 0.02 for 2% loss).
+        Returns:
+            pandas.DataFrame: DataFrame containing backtesting results.
+        """
+        results = signals.to_frame(name="Signal").copy()
+        results["Close"] = df["Close"]
+        results["Shares"] = 0.0
+        results["Balance"] = self.initial_balance
+        results["Transaction_Cost"] = 0.0
+        results["Portfolio_Value"] = self.initial_balance
+        results["Position"] = 0
+        results["Buy_Price"] = np.nan
 
-    Returns:
-        pandas.DataFrame: DataFrame containing backtesting results.
-    """
-    results = signals.to_frame(name="Signal").copy()
-    results["Close"] = df["Close"]
-    results["Shares"] = 0.0
-    results["Balance"] = self.initial_balance
-    results["Transaction_Cost"] = 0.0
-    results["Portfolio_Value"] = self.initial_balance
-    results["Position"] = 0
-    results["Buy_Price"] = np.nan
+        # Initialize state variables
+        position_open = False
+        buy_price = 0.0
 
-    # Initialize state variables
-    position_open = False
-    buy_price = 0.0
-
-    for date in results.index:
-        if results.at[date, "Signal"] == 1 and not position_open:
-            # Execute buy action
-            shares = (results.at[date, "Balance"] - self.transaction_cost) / results.at[
-                date, "Close"
-            ]
-            results.at[date, "Shares"] = shares
-            results.at[date, "Transaction_Cost"] = self.transaction_cost
-            results.at[date, "Balance"] -= (
-                shares * results.at[date, "Close"] + self.transaction_cost
-            )
-            results.at[date, "Position"] = 1
-            results.at[date, "Buy_Price"] = results.at[date, "Close"]
-            buy_price = results.at[date, "Close"]
-            position_open = True
-
-        elif position_open:
-            # Evaluate exit conditions
-            current_price = results.at[date, "Close"]
-            price_change = (current_price - buy_price) / buy_price
-
-            if price_change >= take_profit or price_change <= -stop_loss:
-                # Execute sell action
-                previous_date = results.index[results.index.get_loc(date) - 1]
-                shares = results.at[previous_date, "Shares"]
-                results.at[date, "Balance"] += (
-                    shares * current_price - self.transaction_cost
-                )
+        for date in results.index:
+            if results.at[date, "Signal"] == 1 and not position_open:
+                # Execute buy action
+                shares = (results.at[date, "Balance"] - self.transaction_cost) / results.at[
+                    date, "Close"
+                ]
+                results.at[date, "Shares"] = shares
                 results.at[date, "Transaction_Cost"] = self.transaction_cost
-                results.at[date, "Shares"] = 0
-                results.at[date, "Position"] = 0
-                position_open = False
+                results.at[date, "Balance"] -= (
+                    shares * results.at[date, "Close"] + self.transaction_cost
+                )
+                results.at[date, "Position"] = 1
+                results.at[date, "Buy_Price"] = results.at[date, "Close"]
+                buy_price = results.at[date, "Close"]
+                position_open = True
 
-        # Carry forward values for non-trading days
-        if date != results.index[0]:  # Skip the first date
-            previous_date = results.index[results.index.get_loc(date) - 1]
-            if results.at[date, "Shares"] == 0:
-                results.at[date, "Shares"] = results.at[previous_date, "Shares"]
-            if results.at[date, "Balance"] == self.initial_balance:
-                results.at[date, "Balance"] = results.at[previous_date, "Balance"]
-            results.at[date, "Position"] = results.at[previous_date, "Position"]
+            elif position_open:
+                # Evaluate exit conditions
+                current_price = results.at[date, "Close"]
+                price_change = (current_price - buy_price) / buy_price
 
-    # Calculate portfolio value
-    results["Portfolio_Value"] = results["Balance"] + (
-        results["Shares"] * results["Close"]
-    )
-    return results
+                if price_change >= take_profit or price_change <= -stop_loss:
+                    # Execute sell action
+                    previous_date = results.index[results.index.get_loc(date) - 1]
+                    shares = results.at[previous_date, "Shares"]
+                    results.at[date, "Balance"] += (
+                        shares * current_price - self.transaction_cost
+                    )
+                    results.at[date, "Transaction_Cost"] = self.transaction_cost
+                    results.at[date, "Shares"] = 0
+                    results.at[date, "Position"] = 0
+                    position_open = False
+
+            # Carry forward values for non-trading days
+            if date != results.index[0]:  # Skip the first date
+                previous_date = results.index[results.index.get_loc(date) - 1]
+                if results.at[date, "Shares"] == 0:
+                    results.at[date, "Shares"] = results.at[previous_date, "Shares"]
+                if results.at[date, "Balance"] == self.initial_balance:
+                    results.at[date, "Balance"] = results.at[previous_date, "Balance"]
+                results.at[date, "Position"] = results.at[previous_date, "Position"]
+
+        # Calculate portfolio value
+        results["Portfolio_Value"] = results["Balance"] + (
+            results["Shares"] * results["Close"]
+        )
+        return results
 
     def calculate_metrics(self, results):
         """
