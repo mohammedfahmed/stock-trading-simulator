@@ -1,42 +1,75 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
+from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.optimize import minimize
+
 
 def fetch_stock_data(symbol, period='1y'):
     """
     Fetches historical stock data from Yahoo Finance.
     
     Args:
-        symbol: Stock symbol (e.g., 'AAPL', 'MSFT').
-        period: Data period (e.g., '1y' for 1 year, '5y' for 5 years).
+        symbol (str): Stock symbol (e.g., 'AAPL', 'MSFT').
+        period (str): Data period (e.g., '1y' for 1 year, '5y' for 5 years).
     
     Returns:
         pandas.DataFrame: Historical stock data.
     """
     stock = yf.Ticker(symbol)
-    return stock.history(period=period)
+    data = stock.history(period=period)
+    data.columns = [col if isinstance(col, str) else col[0] for col in data.columns]
+
+    return data
+
+
+def calculate_portfolio_value(cash, shares, current_price):
+    """Calculate total portfolio value."""
+    return cash + (shares * current_price)
+
+
+def execute_trade(cash, shares, price, action, quantity, transaction_cost=0):
+    """Execute a trade with transaction costs and return updated cash and shares."""
+    if action == 'buy' and cash >= price * quantity + transaction_cost:
+        cash -= price * quantity + transaction_cost
+        shares += quantity
+    elif action == 'sell' and shares >= quantity:
+        cash += price * quantity - transaction_cost
+        shares -= quantity
+    return cash, shares
+
+
+def calculate_returns(initial_value, final_value):
+    """Calculate percentage returns."""
+    return ((final_value - initial_value) / initial_value) * 100
+
+
+def format_currency(value):
+    """Format value as currency."""
+    return f"${value:,.2f}"
+
 
 def preprocess_data(data):
     """
-    Preprocesses the stock data by filling missing values.
+    Preprocess the stock data by filling missing values.
     
     Args:
-        data: pandas.DataFrame containing stock data.
+        data (pandas.DataFrame): Stock data.
     
     Returns:
         pandas.DataFrame: Preprocessed stock data.
     """
     return data.fillna(method='ffill')
 
+
 def visualize_backtest_results(results):
     """
-    Visualizes cumulative returns and the equity curve.
+    Visualize cumulative returns and the equity curve.
     
     Args:
-        results: pandas.DataFrame containing backtesting results.
+        results (pandas.DataFrame): Backtesting results.
     """
     plt.figure(figsize=(12, 6))
 
@@ -55,13 +88,14 @@ def visualize_backtest_results(results):
     plt.tight_layout()
     plt.show()
 
+
 def calculate_sharpe_ratio(returns, risk_free_rate=0.01):
     """
-    Calculates the Sharpe Ratio.
+    Calculate the Sharpe Ratio.
     
     Args:
-        returns: Series of portfolio returns.
-        risk_free_rate: Annual risk-free rate.
+        returns (pandas.Series): Portfolio returns.
+        risk_free_rate (float): Annual risk-free rate.
     
     Returns:
         float: Sharpe Ratio.
@@ -69,12 +103,13 @@ def calculate_sharpe_ratio(returns, risk_free_rate=0.01):
     excess_returns = returns - (risk_free_rate / 252)  # Daily risk-free rate
     return np.sqrt(252) * excess_returns.mean() / excess_returns.std()
 
+
 def calculate_max_drawdown(returns):
     """
-    Calculates the maximum drawdown of a portfolio.
+    Calculate the maximum drawdown of a portfolio.
     
     Args:
-        returns: Series of portfolio returns.
+        returns (pandas.Series): Portfolio returns.
     
     Returns:
         float: Maximum drawdown percentage.
@@ -84,13 +119,14 @@ def calculate_max_drawdown(returns):
     drawdown = (cumulative_returns - rolling_max) / rolling_max
     return drawdown.min() * 100
 
+
 def calculate_sortino_ratio(returns, target_return=0.0):
     """
-    Calculates the Sortino Ratio.
+    Calculate the Sortino Ratio.
     
     Args:
-        returns: Series of portfolio returns.
-        target_return: Target return for the portfolio.
+        returns (pandas.Series): Portfolio returns.
+        target_return (float): Target return for the portfolio.
     
     Returns:
         float: Sortino Ratio.
@@ -98,12 +134,13 @@ def calculate_sortino_ratio(returns, target_return=0.0):
     downside_deviation = np.sqrt(np.mean(np.minimum(returns - target_return, 0) ** 2))
     return (returns.mean() - target_return) / downside_deviation if downside_deviation > 0 else np.inf
 
+
 def calculate_calmar_ratio(returns):
     """
-    Calculates the Calmar Ratio.
+    Calculate the Calmar Ratio.
     
     Args:
-        returns: Series of portfolio returns.
+        returns (pandas.Series): Portfolio returns.
     
     Returns:
         float: Calmar Ratio.
@@ -112,17 +149,18 @@ def calculate_calmar_ratio(returns):
     max_drawdown = calculate_max_drawdown(returns)
     return annualized_return / (max_drawdown / 100) if max_drawdown != 0 else np.inf
 
+
 def optimize_portfolio(returns, risk_free_rate=0.01, target_return=0.0):
     """
-    Optimizes portfolio weights using the Efficient Frontier.
+    Optimize portfolio weights using the Efficient Frontier.
     
     Args:
-        returns: DataFrame of asset returns.
-        risk_free_rate: Risk-free rate of return.
-        target_return: Target return for the portfolio.
+        returns (pandas.DataFrame): Asset returns.
+        risk_free_rate (float): Risk-free rate of return.
+        target_return (float): Target return for the portfolio.
     
     Returns:
-        dict: Dictionary containing optimal weights and portfolio statistics.
+        dict: Optimal weights and portfolio statistics.
     """
     def portfolio_return(weights):
         return np.sum(returns.mean() * weights) * 252
@@ -138,7 +176,7 @@ def optimize_portfolio(returns, risk_free_rate=0.01, target_return=0.0):
 
     constraints = {'type': 'eq', 'fun': lambda x: np.sum(x) - 1}
     bounds = tuple((0, 1) for _ in range(returns.shape[1]))
-    initial_weights = np.array([1.0 / returns.shape[1]] * returns.shape[1])
+    initial_weights = np.full(returns.shape[1], 1.0 / returns.shape[1])
 
     min_variance_weights = minimize(min_variance, initial_weights, bounds=bounds, constraints=constraints)
     max_sharpe_weights = minimize(neg_sharpe_ratio, initial_weights, bounds=bounds, constraints=constraints)
@@ -148,12 +186,13 @@ def optimize_portfolio(returns, risk_free_rate=0.01, target_return=0.0):
         'max_sharpe': {'weights': max_sharpe_weights.x, 'volatility': portfolio_volatility(max_sharpe_weights.x)}
     }
 
+
 def analyze_drawdown(results):
     """
-    Analyzes drawdown of the backtesting results.
+    Analyze drawdown of the backtesting results.
     
     Args:
-        results: pandas.DataFrame containing backtesting results.
+        results (pandas.DataFrame): Backtesting results.
     
     Returns:
         float: Maximum drawdown.
@@ -163,12 +202,13 @@ def analyze_drawdown(results):
     drawdown = (cumulative_returns - rolling_max) / rolling_max
     return drawdown.min() * 100
 
+
 def analyze_win_rate(results):
     """
-    Analyzes win rate of the backtesting results.
+    Analyze win rate of the backtesting results.
     
     Args:
-        results: pandas.DataFrame containing backtesting results.
+        results (pandas.DataFrame): Backtesting results.
     
     Returns:
         float: Win rate percentage.
@@ -177,13 +217,14 @@ def analyze_win_rate(results):
     total_trades = results['Position'].diff().ne(0).sum()
     return (winning_trades / total_trades) * 100 if total_trades > 0 else 0
 
+
 def apply_stop_loss(results, stop_loss_pct=0.05):
     """
-    Applies stop-loss to the backtesting results.
+    Apply stop-loss to the backtesting results.
     
     Args:
-        results: pandas.DataFrame containing backtesting results.
-        stop_loss_pct: Stop-loss percentage.
+        results (pandas.DataFrame): Backtesting results.
+        stop_loss_pct (float): Stop-loss percentage.
     
     Returns:
         pandas.DataFrame: Backtesting results with stop-loss applied.
