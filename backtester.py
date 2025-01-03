@@ -16,7 +16,7 @@ class Backtester:
         self.initial_balance = initial_balance
         self.transaction_cost = transaction_cost
 
-    def buy_backtest(self, df, signals, take_profit=0.05, stop_loss=0.02):
+    def simulate_trading(self, df, signals, take_profit=0.05, stop_loss=0.02):
         """
         Simulates backtesting by buying based on signals and selling only on take-profit or stop-loss.
 
@@ -38,13 +38,13 @@ class Backtester:
         results['Position'] = 0
         results['Buy_Price'] = np.nan
 
-        # Initialize variables for tracking positions
+        # Initialize state variables
         position_open = False
-        buy_price = 0
+        buy_price = 0.0
 
         for i in range(len(results)):
             if results['Signal'].iloc[i] == 1 and not position_open:
-                # Buy the stock
+                # Execute buy action
                 shares = (results['Balance'].iloc[i] - self.transaction_cost) / results['Close'].iloc[i]
                 results.at[i, 'Shares'] = shares
                 results.at[i, 'Transaction_Cost'] = self.transaction_cost
@@ -55,12 +55,12 @@ class Backtester:
                 position_open = True
 
             elif position_open:
-                # Check for take-profit or stop-loss
+                # Evaluate exit conditions
                 current_price = results['Close'].iloc[i]
                 price_change = (current_price - buy_price) / buy_price
 
                 if price_change >= take_profit or price_change <= -stop_loss:
-                    # Sell the stock
+                    # Execute sell action
                     shares = results['Shares'].iloc[i - 1]
                     results.at[i, 'Balance'] += shares * current_price - self.transaction_cost
                     results.at[i, 'Transaction_Cost'] = self.transaction_cost
@@ -76,7 +76,6 @@ class Backtester:
 
         # Calculate portfolio value
         results['Portfolio_Value'] = results['Balance'] + (results['Shares'] * results['Close'])
-
         return results
 
     def calculate_metrics(self, results):
@@ -88,7 +87,7 @@ class Backtester:
 
         Returns:
             dict: Dictionary containing performance metrics 
-                    (total_return, sharpe_ratio, max_drawdown, win_rate).
+                   (total_return, sharpe_ratio, max_drawdown, win_rate).
         """
         if 'Portfolio_Value' not in results.columns:
             return {
