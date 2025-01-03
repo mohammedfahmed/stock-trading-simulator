@@ -53,7 +53,7 @@ def main():
     # Backtesting
     backtester = Backtester()
     signals = select_strategy(strategy_type, df, strategy_params)
-    results = backtester.backtest(df, signals)
+    results = backtester.simulate_trading(df, signals)
 
     # Display metrics and visualizations
     st.subheader("Performance Metrics")
