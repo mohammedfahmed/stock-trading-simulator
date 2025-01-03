@@ -22,7 +22,7 @@ def fetch_stock_data(symbol, period='1y'):
     data = stock.history(period=period)
     data.columns = [col if isinstance(col, str) else col[0] for col in data.columns]
     # Assuming df is your DataFrame
-    data = data.reset_index()  # drop=True removes the old index as a column
+    # data = data.reset_index()  # drop=True removes the old index as a column
     return data
 
 
