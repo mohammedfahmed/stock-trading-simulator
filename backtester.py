@@ -86,11 +86,15 @@ class Backtester:
                 if results.at[date, "Balance"] == self.initial_balance:
                     results.at[date, "Balance"] = results.at[previous_date, "Balance"]
                 results.at[date, "Position"] = results.at[previous_date, "Position"]
-
+        
         # Calculate portfolio value
-        results["Portfolio_Value"] = results["Balance"] + (
-            results["Shares"] * results["Close"]
-        )
+        results["Portfolio_Value"] = results["Balance"] + (results["Shares"] * results["Close"])
+
+        # Calculate cumulative returns
+        results['Daily_Return'] = results['Portfolio_Value'].pct_change().fillna(0)
+        results['Cumulative_Returns'] = (1 + results['Daily_Return']).cumprod() - 1
+
+        
         return results
 
     def calculate_metrics(self, results):
