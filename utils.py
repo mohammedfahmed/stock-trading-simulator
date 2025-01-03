@@ -5,89 +5,89 @@ from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.optimize import minimize
+import streamlit as st
 
 
-def fetch_stock_data(symbol, period='1y'):
-    """
-    Fetches historical stock data from Yahoo Finance.
-    
-    Args:
-        symbol (str): Stock symbol (e.g., 'AAPL', 'MSFT').
-        period (str): Data period (e.g., '1y' for 1 year, '5y' for 5 years).
-    
-    Returns:
-        pandas.DataFrame: Historical stock data.
-    """
-    stock = yf.Ticker(symbol)
-    data = stock.history(period=period)
-    data.columns = [col if isinstance(col, str) else col[0] for col in data.columns]
-    # Assuming df is your DataFrame
-    # data = data.reset_index()  # drop=True removes the old index as a column
-    return data
+
+def configure_strategy_parameters(strategy_type):
+    """Configures parameters based on the selected strategy type."""
+    params = {}
+
+    if strategy_type == "Moving Average Crossover":
+        params["short_window"] = st.slider("Short MA Window", 5, 50, 20)
+        params["long_window"] = st.slider("Long MA Window", 20, 200, 50)
+    elif strategy_type == "RSI":
+        params["window"] = st.slider("RSI Period", 5, 30, 14)
+        params["oversold"] = st.slider("Oversold Threshold", 20, 40, 30)
+        params["overbought"] = st.slider("Overbought Threshold", 60, 80, 70)
+    elif strategy_type == "MACD":
+        params["fast"] = st.slider("Fast Period", 8, 20, 12)
+        params["slow"] = st.slider("Slow Period", 20, 30, 26)
+        params["signal"] = st.slider("Signal Period", 5, 15, 9)
+    elif strategy_type == "Bollinger Bands":
+        params["window"] = st.slider("Period", 10, 50, 20)
+        params["std_dev"] = st.slider("Standard Deviation", 1.0, 3.0, 2.0, 0.1)
+    elif strategy_type == "Triple MA Crossover":
+        params["short_window"] = st.slider("Fast MA Window", 3, 15, 5)
+        params["mid_window"] = st.slider("Medium MA Window", 15, 50, 21)
+        params["long_window"] = st.slider("Slow MA Window", 50, 200, 63)
+    elif strategy_type == "Mean Reversion":
+        params["window"] = st.slider("Lookback Period", 10, 100, 20)
+        params["std_dev"] = st.slider("Entry Threshold", 1.0, 3.0, 2.0, 0.1)
+
+    return params
 
 
 def calculate_portfolio_value(cash, shares, current_price):
-    """Calculate total portfolio value."""
     return cash + (shares * current_price)
 
-
-def execute_trade(cash, shares, price, action, quantity, transaction_cost=0):
-    """Execute a trade with transaction costs and return updated cash and shares."""
-    if action == 'buy' and cash >= price * quantity + transaction_cost:
-        cash -= price * quantity + transaction_cost
-        shares += quantity
-    elif action == 'sell' and shares >= quantity:
-        cash += price * quantity - transaction_cost
-        shares -= quantity
-    return cash, shares
-
-
 def calculate_returns(initial_value, final_value):
-    """Calculate percentage returns."""
     return ((final_value - initial_value) / initial_value) * 100
 
 
 def format_currency(value):
-    """Format value as currency."""
     return f"${value:,.2f}"
 
 
 def preprocess_data(data):
-    """
-    Preprocess the stock data by filling missing values.
+    return data.ffill()
+
+
+# def visualize_backtest_results(results):
+#     """
+#     Visualize cumulative returns and the equity curve.
     
-    Args:
-        data (pandas.DataFrame): Stock data.
-    
-    Returns:
-        pandas.DataFrame: Preprocessed stock data.
-    """
-    return data.fillna(method='ffill')
+#     Args:
+#         results (pandas.DataFrame): Backtesting results.
+#     """
+#     plt.figure(figsize=(12, 6))
+
+#     # Plot cumulative returns
+#     plt.subplot(2, 1, 1)
+#     plt.plot(results['Cumulative_Returns'], label='Benchmark', color='blue')
+#     plt.plot(results['Strategy_Cumulative_Returns'], label='Strategy', color='orange')
+#     plt.title('Cumulative Returns')
+#     plt.legend()
+
+#     # Plot equity curve
+#     plt.subplot(2, 1, 2)
+#     plt.plot(results['Portfolio_Value'], color='green')
+#     plt.title('Equity Curve')
+
+#     plt.tight_layout()
+#     plt.show()
 
 
-def visualize_backtest_results(results):
-    """
-    Visualize cumulative returns and the equity curve.
-    
-    Args:
-        results (pandas.DataFrame): Backtesting results.
-    """
-    plt.figure(figsize=(12, 6))
+# def execute_trade(cash, shares, price, action, quantity, transaction_cost=0):
+#     """Execute a trade with transaction costs and return updated cash and shares."""
+#     if action == 'buy' and cash >= price * quantity + transaction_cost:
+#         cash -= price * quantity + transaction_cost
+#         shares += quantity
+#     elif action == 'sell' and shares >= quantity:
+#         cash += price * quantity - transaction_cost
+#         shares -= quantity
+#     return cash, shares
 
-    # Plot cumulative returns
-    plt.subplot(2, 1, 1)
-    plt.plot(results['Cumulative_Returns'], label='Benchmark', color='blue')
-    plt.plot(results['Strategy_Cumulative_Returns'], label='Strategy', color='orange')
-    plt.title('Cumulative Returns')
-    plt.legend()
-
-    # Plot equity curve
-    plt.subplot(2, 1, 2)
-    plt.plot(results['Portfolio_Value'], color='green')
-    plt.title('Equity Curve')
-
-    plt.tight_layout()
-    plt.show()
 
 
 def calculate_sharpe_ratio(returns, risk_free_rate=0.01):

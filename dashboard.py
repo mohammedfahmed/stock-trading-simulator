@@ -1,7 +1,8 @@
 import streamlit as st
-import plotly.graph_objects as go
-from utils import fetch_stock_data, preprocess_data, visualize_backtest_results
-from backtester import Backtester
+from data_loader import fetch_stock_data
+from utils import preprocess_data, configure_strategy_parameters
+from visualize import visualize_backtest_results
+from simulator import Simulator
 from strategies import (
     moving_average_crossover,
     rsi_strategy,
@@ -14,7 +15,6 @@ from strategies import (
 # Page configuration
 st.set_page_config(
     page_title="Trading Strategy Dashboard",
-    page_icon="📈",
     layout="wide"
 )
 
@@ -22,10 +22,10 @@ def main():
     st.title("Trading Strategy Dashboard")
 
     # Sidebar: Configuration section
-    st.sidebar.header("Configuration")
-    ticker = st.sidebar.text_input("Stock Symbol", value="AAPL")
-    period = st.sidebar.selectbox("Time Period", ["1y", "2y", "5y", "max"], index=0)
-    strategy_type = st.sidebar.selectbox(
+    st.header("Configuration")
+    ticker = st.text_input("Stock Symbol", value="AAPL")
+    period = st.selectbox("Time Period", ["1y", "2y", "5y", "max"], index=0)
+    strategy_type = st.selectbox(
         "Strategy Type",
         [
             "Moving Average Crossover",
@@ -39,7 +39,7 @@ def main():
     )
 
     # Sidebar: Strategy parameters section
-    st.sidebar.header("Strategy Parameters")
+    # st.sidebar.header("Strategy Parameters")
     strategy_params = configure_strategy_parameters(strategy_type)
 
     # Load and preprocess data
@@ -49,47 +49,18 @@ def main():
         return
 
     df = preprocess_data(raw_data)
-
-    # Backtesting
-    backtester = Backtester()
+    simulator = Simulator()
     signals = select_strategy(strategy_type, df, strategy_params)
-    results = backtester.simulate_trading(df, signals)
+    results = simulator.execute_trade(df, signals)
 
     # Display metrics and visualizations
     st.subheader("Performance Metrics")
-    metrics = backtester.calculate_metrics(results)
+    metrics = simulator.calculate_metrics(results)
     st.write(metrics)
 
     st.subheader("Backtest Visualization")
-    visualize_backtest_results(results)
+    st.altair_chart(visualize_backtest_results(results))
 
-def configure_strategy_parameters(strategy_type):
-    """Configures parameters based on the selected strategy type."""
-    params = {}
-
-    if strategy_type == "Moving Average Crossover":
-        params["short_window"] = st.sidebar.slider("Short MA Window", 5, 50, 20)
-        params["long_window"] = st.sidebar.slider("Long MA Window", 20, 200, 50)
-    elif strategy_type == "RSI":
-        params["window"] = st.sidebar.slider("RSI Period", 5, 30, 14)
-        params["oversold"] = st.sidebar.slider("Oversold Threshold", 20, 40, 30)
-        params["overbought"] = st.sidebar.slider("Overbought Threshold", 60, 80, 70)
-    elif strategy_type == "MACD":
-        params["fast"] = st.sidebar.slider("Fast Period", 8, 20, 12)
-        params["slow"] = st.sidebar.slider("Slow Period", 20, 30, 26)
-        params["signal"] = st.sidebar.slider("Signal Period", 5, 15, 9)
-    elif strategy_type == "Bollinger Bands":
-        params["window"] = st.sidebar.slider("Period", 10, 50, 20)
-        params["std_dev"] = st.sidebar.slider("Standard Deviation", 1.0, 3.0, 2.0, 0.1)
-    elif strategy_type == "Triple MA Crossover":
-        params["short_window"] = st.sidebar.slider("Fast MA Window", 3, 15, 5)
-        params["mid_window"] = st.sidebar.slider("Medium MA Window", 15, 50, 21)
-        params["long_window"] = st.sidebar.slider("Slow MA Window", 50, 200, 63)
-    elif strategy_type == "Mean Reversion":
-        params["window"] = st.sidebar.slider("Lookback Period", 10, 100, 20)
-        params["std_dev"] = st.sidebar.slider("Entry Threshold", 1.0, 3.0, 2.0, 0.1)
-
-    return params
 
 def select_strategy(strategy_type, df, strategy_params):
     """Selects and applies the appropriate strategy based on user input."""
