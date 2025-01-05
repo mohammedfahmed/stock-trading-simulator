@@ -41,7 +41,6 @@ def main():
         st.error(f"No data available for {ticker}. Please check the stock symbol.")
         return
 
-    # df = preprocess_data(raw_data)
     signals = strategy.generate_signals(strategy_type, raw_data, strategy_params)
     results = simulator.execute_trade(raw_data, signals)
 

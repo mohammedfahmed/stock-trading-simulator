@@ -125,7 +125,7 @@ class Simulator:
 
 
 
-    def __init__(self, initial_balance=10000, transaction_cost=10):
+    def __init__(self, initial_balance=10000.0, transaction_cost=10):
         self.initial_balance = initial_balance
         self.transaction_cost = transaction_cost
 
@@ -138,7 +138,7 @@ class Simulator:
     def execute_trade(self, df, signals, take_profit=0.05, stop_loss=0.02):
         results = signals.to_frame(name="Signal").copy()
         results["Close"] = df["Close"]
-        results["Shares"] = 0.0
+        results["Shares"] = 0
         results["Balance"] = self.initial_balance
         results["Transaction_Cost"] = 0.0
         results["Portfolio_Value"] = self.initial_balance
