@@ -1,6 +1,6 @@
 import streamlit as st
 # from data_loader import fetch_stock_data
-from simulator import Simulator
+from simulator import Simulator, Strategy
 from visualize import visualize_backtest_results
 
 
@@ -32,8 +32,9 @@ def main():
     )
 
     simulator = Simulator()
+    strategy = Strategy()
 
-    strategy_params = simulator.configure_strategy_parameters(strategy_type)
+    strategy_params = strategy.configure_strategy_parameters(strategy_type)
 
     raw_data = simulator.fetch_stock_data(ticker, period)
     if raw_data is None or raw_data.empty:
@@ -41,7 +42,7 @@ def main():
         return
 
     # df = preprocess_data(raw_data)
-    signals = simulator.generate_signals(strategy_type, raw_data, strategy_params)
+    signals = strategy.generate_signals(strategy_type, raw_data, strategy_params)
     results = simulator.execute_trade(raw_data, signals)
 
     st.subheader("Performance Metrics")

@@ -1,28 +1,14 @@
 import pandas as pd
 import numpy as np
 import streamlit as st
-
-from strategies import (
-    moving_average_crossover,
-    rsi_strategy,
-    macd_strategy,
-    bollinger_bands_strategy,
-    triple_ma_strategy,
-    mean_reversion_strategy,
-)
-
 import yfinance as yf
-
-import pandas as pd
 from ta.trend import SMAIndicator, MACD
 from ta.momentum import RSIIndicator
 from ta.volatility import BollingerBands
 
 
 
-class Simulator:
-
-
+class Strategy:
 
 
     def moving_average_crossover(self, data, short_window, long_window):
@@ -88,24 +74,66 @@ class Simulator:
 
         return signal
 
+    def generate_signals(self, strategy_type, df, strategy_params):
+        if strategy_type == "Moving Average Crossover":
+            return self.moving_average_crossover(df, **strategy_params)
+        elif strategy_type == "RSI":
+            return self.rsi_strategy(df, **strategy_params)
+        elif strategy_type == "MACD":
+            return self.macd_strategy(df, **strategy_params)
+        elif strategy_type == "Bollinger Bands":
+            return self.bollinger_bands_strategy(df, **strategy_params)
+        elif strategy_type == "Triple MA Crossover":
+            return self.triple_ma_strategy(df, **strategy_params)
+        elif strategy_type == "Mean Reversion":
+            return self.mean_reversion_strategy(df, **strategy_params)
+        else:
+            raise ValueError(f"Unknown strategy type: {strategy_type}")
+
+    def configure_strategy_parameters(self, strategy_type):
+
+        params = {}
+
+        if strategy_type == "Moving Average Crossover":
+            params["short_window"] = st.slider("Short MA Window", 5, 50, 20)
+            params["long_window"] = st.slider("Long MA Window", 20, 200, 50)
+        elif strategy_type == "RSI":
+            params["window"] = st.slider("RSI Period", 5, 30, 14)
+            params["oversold"] = st.slider("Oversold Threshold", 20, 40, 30)
+            params["overbought"] = st.slider("Overbought Threshold", 60, 80, 70)
+        elif strategy_type == "MACD":
+            params["fast"] = st.slider("Fast Period", 8, 20, 12)
+            params["slow"] = st.slider("Slow Period", 20, 30, 26)
+            params["signal"] = st.slider("Signal Period", 5, 15, 9)
+        elif strategy_type == "Bollinger Bands":
+            params["window"] = st.slider("Period", 10, 50, 20)
+            params["std_dev"] = st.slider("Standard Deviation", 1.0, 3.0, 2.0, 0.1)
+        elif strategy_type == "Triple MA Crossover":
+            params["short_window"] = st.slider("Fast MA Window", 3, 15, 5)
+            params["mid_window"] = st.slider("Medium MA Window", 15, 50, 21)
+            params["long_window"] = st.slider("Slow MA Window", 50, 200, 63)
+        elif strategy_type == "Mean Reversion":
+            params["window"] = st.slider("Lookback Period", 10, 100, 20)
+            params["std_dev"] = st.slider("Entry Threshold", 1.0, 3.0, 2.0, 0.1)
+
+        return params
 
 
 
 
-
-
-
-    def fetch_stock_data(self, symbol, period='1y'):
-        stock = yf.Ticker(symbol)
-        data = stock.history(period=period)
-        data.columns = [col if isinstance(col, str) else col[0] for col in data.columns]
-        return data
+class Simulator:
 
 
 
     def __init__(self, initial_balance=10000, transaction_cost=10):
         self.initial_balance = initial_balance
         self.transaction_cost = transaction_cost
+
+    def fetch_stock_data(self, symbol, period='1y'):
+        stock = yf.Ticker(symbol)
+        data = stock.history(period=period)
+        data.columns = [col if isinstance(col, str) else col[0] for col in data.columns]
+        return data
 
     def execute_trade(self, df, signals, take_profit=0.05, stop_loss=0.02):
         results = signals.to_frame(name="Signal").copy()
@@ -213,46 +241,4 @@ class Simulator:
         return metrics 
 
 
-    def generate_signals(self, strategy_type, df, strategy_params):
-        if strategy_type == "Moving Average Crossover":
-            return moving_average_crossover(df, **strategy_params)
-        elif strategy_type == "RSI":
-            return rsi_strategy(df, **strategy_params)
-        elif strategy_type == "MACD":
-            return macd_strategy(df, **strategy_params)
-        elif strategy_type == "Bollinger Bands":
-            return bollinger_bands_strategy(df, **strategy_params)
-        elif strategy_type == "Triple MA Crossover":
-            return triple_ma_strategy(df, **strategy_params)
-        elif strategy_type == "Mean Reversion":
-            return mean_reversion_strategy(df, **strategy_params)
-        else:
-            raise ValueError(f"Unknown strategy type: {strategy_type}")
-
-    def configure_strategy_parameters(self, strategy_type):
-
-        params = {}
-
-        if strategy_type == "Moving Average Crossover":
-            params["short_window"] = st.slider("Short MA Window", 5, 50, 20)
-            params["long_window"] = st.slider("Long MA Window", 20, 200, 50)
-        elif strategy_type == "RSI":
-            params["window"] = st.slider("RSI Period", 5, 30, 14)
-            params["oversold"] = st.slider("Oversold Threshold", 20, 40, 30)
-            params["overbought"] = st.slider("Overbought Threshold", 60, 80, 70)
-        elif strategy_type == "MACD":
-            params["fast"] = st.slider("Fast Period", 8, 20, 12)
-            params["slow"] = st.slider("Slow Period", 20, 30, 26)
-            params["signal"] = st.slider("Signal Period", 5, 15, 9)
-        elif strategy_type == "Bollinger Bands":
-            params["window"] = st.slider("Period", 10, 50, 20)
-            params["std_dev"] = st.slider("Standard Deviation", 1.0, 3.0, 2.0, 0.1)
-        elif strategy_type == "Triple MA Crossover":
-            params["short_window"] = st.slider("Fast MA Window", 3, 15, 5)
-            params["mid_window"] = st.slider("Medium MA Window", 15, 50, 21)
-            params["long_window"] = st.slider("Slow MA Window", 50, 200, 63)
-        elif strategy_type == "Mean Reversion":
-            params["window"] = st.slider("Lookback Period", 10, 100, 20)
-            params["std_dev"] = st.slider("Entry Threshold", 1.0, 3.0, 2.0, 0.1)
-
-        return params
+    
