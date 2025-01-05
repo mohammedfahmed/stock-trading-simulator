@@ -5,37 +5,6 @@ from datetime import datetime, timedelta
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.optimize import minimize
-import streamlit as st
-
-
-
-def configure_strategy_parameters(strategy_type):
-    """Configures parameters based on the selected strategy type."""
-    params = {}
-
-    if strategy_type == "Moving Average Crossover":
-        params["short_window"] = st.slider("Short MA Window", 5, 50, 20)
-        params["long_window"] = st.slider("Long MA Window", 20, 200, 50)
-    elif strategy_type == "RSI":
-        params["window"] = st.slider("RSI Period", 5, 30, 14)
-        params["oversold"] = st.slider("Oversold Threshold", 20, 40, 30)
-        params["overbought"] = st.slider("Overbought Threshold", 60, 80, 70)
-    elif strategy_type == "MACD":
-        params["fast"] = st.slider("Fast Period", 8, 20, 12)
-        params["slow"] = st.slider("Slow Period", 20, 30, 26)
-        params["signal"] = st.slider("Signal Period", 5, 15, 9)
-    elif strategy_type == "Bollinger Bands":
-        params["window"] = st.slider("Period", 10, 50, 20)
-        params["std_dev"] = st.slider("Standard Deviation", 1.0, 3.0, 2.0, 0.1)
-    elif strategy_type == "Triple MA Crossover":
-        params["short_window"] = st.slider("Fast MA Window", 3, 15, 5)
-        params["mid_window"] = st.slider("Medium MA Window", 15, 50, 21)
-        params["long_window"] = st.slider("Slow MA Window", 50, 200, 63)
-    elif strategy_type == "Mean Reversion":
-        params["window"] = st.slider("Lookback Period", 10, 100, 20)
-        params["std_dev"] = st.slider("Entry Threshold", 1.0, 3.0, 2.0, 0.1)
-
-    return params
 
 
 def calculate_portfolio_value(cash, shares, current_price):
@@ -48,9 +17,6 @@ def calculate_returns(initial_value, final_value):
 def format_currency(value):
     return f"${value:,.2f}"
 
-
-def preprocess_data(data):
-    return data.ffill()
 
 
 # def visualize_backtest_results(results):

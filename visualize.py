@@ -11,7 +11,7 @@ def visualize_backtest_results(results):
     # Prepare data for cumulative returns chart
     cumulative_returns_data = results.melt(
         id_vars=['Date'],
-        value_vars=['Cumulative_Returns', 'Strategy_Cumulative_Returns'],
+        value_vars=['Cumulative_Returns', 'Shares'],
         var_name='Type',
         value_name='Value'
     )

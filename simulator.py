@@ -2,11 +2,106 @@ import pandas as pd
 import numpy as np
 import streamlit as st
 
+from strategies import (
+    moving_average_crossover,
+    rsi_strategy,
+    macd_strategy,
+    bollinger_bands_strategy,
+    triple_ma_strategy,
+    mean_reversion_strategy,
+)
+
+import yfinance as yf
+
+import pandas as pd
+from ta.trend import SMAIndicator, MACD
+from ta.momentum import RSIIndicator
+from ta.volatility import BollingerBands
+
+
 
 class Simulator:
-    """
-    Simulator class for performing backtesting on trading strategies.
-    """
+
+
+
+
+    def moving_average_crossover(self, data, short_window, long_window):
+        short_ma = SMAIndicator(close=data['Close'], window=short_window).sma_indicator()
+        long_ma = SMAIndicator(close=data['Close'], window=long_window).sma_indicator()
+
+        signal = pd.Series(0.0, index=data.index)
+        signal[short_ma > long_ma] = 1.0  # Buy
+        signal[short_ma < long_ma] = -1.0  # Sell
+
+        return signal
+
+    def rsi_strategy(self, data, window=14, overbought=70, oversold=30):
+        rsi = RSIIndicator(close=data['Close'], window=window).rsi()
+
+        signal = pd.Series(0.0, index=data.index)
+        signal[rsi < oversold] = 1.0  # Buy
+        signal[rsi > overbought] = -1.0  # Sell
+
+        return signal
+
+    def macd_strategy(self, data, fast=12, slow=26, signal=9):
+        macd = MACD(close=data['Close'], window_fast=fast, window_slow=slow, window_sign=signal)
+        macd_line = macd.macd()
+        signal_line = macd.macd_signal()
+
+        signal = pd.Series(0.0, index=data.index)
+        signal[macd_line > signal_line] = 1.0  # Buy
+        signal[macd_line < signal_line] = -1.0  # Sell
+
+        return signal
+
+    def bollinger_bands_strategy(self, data, window=20, std_dev=2):
+        bb = BollingerBands(close=data['Close'], window=window, window_dev=std_dev)
+
+        signal = pd.Series(0.0, index=data.index)
+        signal[data['Close'] < bb.bollinger_lband()] = 1.0  # Buy
+        signal[data['Close'] > bb.bollinger_hband()] = -1.0  # Sell
+
+        return signal
+
+    def triple_ma_strategy(self, data, short_window=5, mid_window=21, long_window=63):
+        short_ma = SMAIndicator(close=data['Close'], window=short_window).sma_indicator()
+        mid_ma = SMAIndicator(close=data['Close'], window=mid_window).sma_indicator()
+        long_ma = SMAIndicator(close=data['Close'], window=long_window).sma_indicator()
+
+        signal = pd.Series(0.0, index=data.index)
+        signal[(short_ma > mid_ma) & (mid_ma > long_ma)] = 1.0  # Buy
+        signal[(short_ma < mid_ma) & (mid_ma < long_ma)] = -1.0  # Sell
+
+        return signal
+
+    def mean_reversion_strategy(self, data, window=20, std_dev=2):
+        ma = SMAIndicator(close=data['Close'], window=window).sma_indicator()
+        std = data['Close'].rolling(window=window).std()
+
+        upper_band = ma + (std * std_dev)
+        lower_band = ma - (std * std_dev)
+
+        signal = pd.Series(0.0, index=data.index)
+        signal[data['Close'] < lower_band] = 1.0  # Buy
+        signal[data['Close'] > upper_band] = -1.0  # Sell
+
+        return signal
+
+
+
+
+
+
+
+
+    def fetch_stock_data(self, symbol, period='1y'):
+        stock = yf.Ticker(symbol)
+        data = stock.history(period=period)
+        data.columns = [col if isinstance(col, str) else col[0] for col in data.columns]
+        return data
+
+
 
     def __init__(self, initial_balance=10000, transaction_cost=10):
         self.initial_balance = initial_balance
@@ -29,9 +124,8 @@ class Simulator:
         for date in results.index:
             if results.at[date, "Signal"] == 1 and not position_open:
                 # Execute buy action
-                shares = (results.at[date, "Balance"] - self.transaction_cost) / results.at[
-                    date, "Close"
-                ]
+                shares = int((results.at[date, "Balance"] - self.transaction_cost) / results.at[
+                    date, "Close"])
                 results.at[date, "Shares"] = shares
                 results.at[date, "Transaction_Cost"] = self.transaction_cost
                 results.at[date, "Balance"] -= (
@@ -73,8 +167,6 @@ class Simulator:
         # Calculate cumulative returns
         results['Daily_Return'] = results['Portfolio_Value'].pct_change().fillna(0)
         results['Cumulative_Returns'] = (1 + results['Daily_Return']).cumprod() - 1
-        results['Daily_Return'] = results['Portfolio_Value'].pct_change().fillna(0)
-        results['Strategy_Cumulative_Returns'] = (1 + results['Daily_Return']).cumprod() - 1
 
 
         
@@ -119,3 +211,48 @@ class Simulator:
         )
 
         return metrics 
+
+
+    def generate_signals(self, strategy_type, df, strategy_params):
+        if strategy_type == "Moving Average Crossover":
+            return moving_average_crossover(df, **strategy_params)
+        elif strategy_type == "RSI":
+            return rsi_strategy(df, **strategy_params)
+        elif strategy_type == "MACD":
+            return macd_strategy(df, **strategy_params)
+        elif strategy_type == "Bollinger Bands":
+            return bollinger_bands_strategy(df, **strategy_params)
+        elif strategy_type == "Triple MA Crossover":
+            return triple_ma_strategy(df, **strategy_params)
+        elif strategy_type == "Mean Reversion":
+            return mean_reversion_strategy(df, **strategy_params)
+        else:
+            raise ValueError(f"Unknown strategy type: {strategy_type}")
+
+    def configure_strategy_parameters(self, strategy_type):
+
+        params = {}
+
+        if strategy_type == "Moving Average Crossover":
+            params["short_window"] = st.slider("Short MA Window", 5, 50, 20)
+            params["long_window"] = st.slider("Long MA Window", 20, 200, 50)
+        elif strategy_type == "RSI":
+            params["window"] = st.slider("RSI Period", 5, 30, 14)
+            params["oversold"] = st.slider("Oversold Threshold", 20, 40, 30)
+            params["overbought"] = st.slider("Overbought Threshold", 60, 80, 70)
+        elif strategy_type == "MACD":
+            params["fast"] = st.slider("Fast Period", 8, 20, 12)
+            params["slow"] = st.slider("Slow Period", 20, 30, 26)
+            params["signal"] = st.slider("Signal Period", 5, 15, 9)
+        elif strategy_type == "Bollinger Bands":
+            params["window"] = st.slider("Period", 10, 50, 20)
+            params["std_dev"] = st.slider("Standard Deviation", 1.0, 3.0, 2.0, 0.1)
+        elif strategy_type == "Triple MA Crossover":
+            params["short_window"] = st.slider("Fast MA Window", 3, 15, 5)
+            params["mid_window"] = st.slider("Medium MA Window", 15, 50, 21)
+            params["long_window"] = st.slider("Slow MA Window", 50, 200, 63)
+        elif strategy_type == "Mean Reversion":
+            params["window"] = st.slider("Lookback Period", 10, 100, 20)
+            params["std_dev"] = st.slider("Entry Threshold", 1.0, 3.0, 2.0, 0.1)
+
+        return params
